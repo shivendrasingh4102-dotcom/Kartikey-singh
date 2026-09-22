@@ -1,0 +1,6 @@
+{
+  "name": "Secure Delivery & Receipt Pipeline Simulator",
+  "description": "Working digital publication website and post-payment fulfillment engine for Kartikey Singh's e-book with live storefront, 15-minute S3 signed URLs, dynamic PDF watermarking, and automated receipts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
