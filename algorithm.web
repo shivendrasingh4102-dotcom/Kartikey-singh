@@ -1,0 +1,626 @@
+<!--
+  ALGORITHM SECTION — drop-in ranked content block
+  =================================================
+  Copy this whole block (style + markup + script) into your page,
+  or lift just the parts you need. It is framework-free vanilla
+  JS/CSS so it works on plain HTML, WordPress, PHP, etc.
+
+  WHAT IT DOES
+  - Renders a ranked list of items (posts, products, links — anything).
+  - AUTOMATIC mode: ranks items by a live score = weighted mix of
+    views, likes and recency. Adjust the weights with the sliders.
+  - MANUAL mode: drag items to reorder by hand, or pin an item to
+    lock it at the top regardless of score.
+  - Add / edit / delete items from the panel — no code changes needed
+    for day-to-day content updates.
+  - Everything is saved to localStorage so it survives a page reload.
+    Swap the load/save functions for an API call if you have a backend.
+
+  HOW TO WIRE IT TO REAL DATA
+  - Replace the `seedItems` array below with items from your CMS/API.
+  - Replace `saveItems()` / `loadItems()` with fetch() calls to your
+    backend if you want the ranking shared across visitors instead of
+    stored per-browser.
+-->
+
+<section class="algo-section" id="algoSection">
+  <div class="algo-inner">
+
+    <header class="algo-header">
+      <div class="algo-heading">
+        <h2>Ranked for you</h2>
+        <p class="algo-sub">Ordered automatically by engagement — or arrange it yourself.</p>
+      </div>
+
+      <div class="algo-mode-toggle" role="tablist" aria-label="Ranking mode">
+        <button class="algo-mode-btn is-active" data-mode="auto" role="tab" aria-selected="true">Automatic</button>
+        <button class="algo-mode-btn" data-mode="manual" role="tab" aria-selected="false">Manual</button>
+      </div>
+    </header>
+
+    <!-- AUTOMATIC controls: weight sliders -->
+    <div class="algo-weights" id="algoWeights">
+      <div class="algo-weight">
+        <label for="wViews">Views</label>
+        <input type="range" id="wViews" min="0" max="10" step="1" value="4" />
+        <span class="algo-weight-val" data-for="wViews">4</span>
+      </div>
+      <div class="algo-weight">
+        <label for="wLikes">Likes</label>
+        <input type="range" id="wLikes" min="0" max="10" step="1" value="6" />
+        <span class="algo-weight-val" data-for="wLikes">6</span>
+      </div>
+      <div class="algo-weight">
+        <label for="wRecency">Recency</label>
+        <input type="range" id="wRecency" min="0" max="10" step="1" value="5" />
+        <span class="algo-weight-val" data-for="wRecency">5</span>
+      </div>
+    </div>
+
+    <p class="algo-hint" id="algoHint">Drag the ≡ handle to reorder. Pin an item to keep it fixed at the top.</p>
+
+    <ol class="algo-list" id="algoList"></ol>
+
+    <button class="algo-add-btn" id="algoAddBtn" type="button">+ Add item</button>
+  </div>
+
+  <!-- Add / edit item dialog -->
+  <div class="algo-modal-backdrop" id="algoModalBackdrop">
+    <div class="algo-modal" role="dialog" aria-modal="true" aria-labelledby="algoModalTitle">
+      <h3 id="algoModalTitle">Add item</h3>
+      <label class="algo-field">
+        <span>Title</span>
+        <input type="text" id="fTitle" placeholder="Item title" />
+      </label>
+      <label class="algo-field">
+        <span>URL</span>
+        <input type="text" id="fUrl" placeholder="https://…" />
+      </label>
+      <div class="algo-field-row">
+        <label class="algo-field">
+          <span>Views</span>
+          <input type="number" id="fViews" min="0" value="0" />
+        </label>
+        <label class="algo-field">
+          <span>Likes</span>
+          <input type="number" id="fLikes" min="0" value="0" />
+        </label>
+      </div>
+      <label class="algo-field">
+        <span>Date</span>
+        <input type="date" id="fDate" />
+      </label>
+      <div class="algo-modal-actions">
+        <button type="button" class="algo-btn-ghost" id="algoCancelBtn">Cancel</button>
+        <button type="button" class="algo-btn-solid" id="algoSaveBtn">Save item</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  #algoSection {
+    --algo-ink: #16171c;
+    --algo-panel: #1f2129;
+    --algo-panel-2: #262832;
+    --algo-line: #34363f;
+    --algo-text: #f0efe9;
+    --algo-muted: #9497a3;
+    --algo-accent: #e2a93a;
+    --algo-accent-ink: #16171c;
+    --algo-pin: #6fcf97;
+
+    background: var(--algo-ink);
+    color: var(--algo-text);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 48px 20px;
+    box-sizing: border-box;
+  }
+
+  #algoSection * { box-sizing: border-box; }
+
+  .algo-inner { max-width: 720px; margin: 0 auto; }
+
+  .algo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .algo-heading h2 {
+    font-family: "Barlow Condensed", "Inter", sans-serif;
+    font-weight: 600;
+    font-size: 34px;
+    letter-spacing: 0.2px;
+    margin: 0 0 4px;
+    color: var(--algo-text);
+  }
+
+  .algo-sub {
+    margin: 0;
+    color: var(--algo-muted);
+    font-size: 14px;
+  }
+
+  .algo-mode-toggle {
+    display: inline-flex;
+    background: var(--algo-panel);
+    border: 1px solid var(--algo-line);
+    border-radius: 8px;
+    padding: 3px;
+  }
+
+  .algo-mode-btn {
+    border: none;
+    background: transparent;
+    color: var(--algo-muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .algo-mode-btn.is-active {
+    background: var(--algo-accent);
+    color: var(--algo-accent-ink);
+  }
+
+  .algo-weights {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    background: var(--algo-panel);
+    border: 1px solid var(--algo-line);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 14px;
+  }
+
+  .algo-weight { display: flex; flex-direction: column; gap: 6px; }
+
+  .algo-weight label {
+    font-size: 12px;
+    color: var(--algo-muted);
+  }
+
+  .algo-weight input[type="range"] {
+    accent-color: var(--algo-accent);
+    width: 100%;
+  }
+
+  .algo-weight-val {
+    font-size: 12px;
+    color: var(--algo-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .algo-hint {
+    font-size: 12px;
+    color: var(--algo-muted);
+    margin: 0 0 10px;
+  }
+
+  .algo-list {
+    list-style: none;
+    margin: 0 0 18px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .algo-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--algo-panel);
+    border: 1px solid var(--algo-line);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .algo-item.is-dragging { opacity: 0.4; }
+  .algo-item.is-over { border-color: var(--algo-accent); }
+
+  .algo-rank {
+    font-family: "Barlow Condensed", sans-serif;
+    font-size: 22px;
+    color: var(--algo-muted);
+    width: 28px;
+    text-align: center;
+    flex: none;
+  }
+
+  .algo-handle {
+    flex: none;
+    cursor: grab;
+    color: var(--algo-muted);
+    font-size: 16px;
+    padding: 2px 4px;
+    display: none;
+  }
+
+  #algoSection.mode-manual .algo-handle { display: block; }
+  #algoSection.mode-manual .algo-weights { opacity: 0.35; pointer-events: none; }
+
+  .algo-item-body { flex: 1 1 auto; min-width: 0; }
+
+  .algo-item-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--algo-text);
+    text-decoration: none;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .algo-item-title:hover { color: var(--algo-accent); }
+
+  .algo-item-meta {
+    font-size: 12px;
+    color: var(--algo-muted);
+    margin-top: 2px;
+  }
+
+  .algo-item-score {
+    flex: none;
+    font-size: 12px;
+    color: var(--algo-accent);
+    font-variant-numeric: tabular-nums;
+    min-width: 46px;
+    text-align: right;
+  }
+
+  .algo-item-actions {
+    flex: none;
+    display: flex;
+    gap: 6px;
+  }
+
+  .algo-icon-btn {
+    background: var(--algo-panel-2);
+    border: 1px solid var(--algo-line);
+    color: var(--algo-muted);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  .algo-icon-btn:hover { color: var(--algo-text); }
+  .algo-icon-btn.is-pinned { color: var(--algo-pin); border-color: var(--algo-pin); }
+
+  .algo-add-btn {
+    background: transparent;
+    border: 1px dashed var(--algo-line);
+    color: var(--algo-muted);
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .algo-add-btn:hover { border-color: var(--algo-accent); color: var(--algo-accent); }
+
+  .algo-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+  }
+
+  .algo-modal-backdrop.is-open { display: flex; }
+
+  .algo-modal {
+    background: var(--algo-panel);
+    border: 1px solid var(--algo-line);
+    border-radius: 12px;
+    padding: 20px;
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .algo-modal h3 { margin: 0 0 14px; font-size: 16px; color: var(--algo-text); }
+
+  .algo-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-size: 12px; color: var(--algo-muted); }
+
+  .algo-field input {
+    background: var(--algo-ink);
+    border: 1px solid var(--algo-line);
+    color: var(--algo-text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+
+  .algo-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .algo-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+
+  .algo-btn-ghost, .algo-btn-solid {
+    border-radius: 7px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--algo-line);
+  }
+
+  .algo-btn-ghost { background: transparent; color: var(--algo-muted); }
+  .algo-btn-solid { background: var(--algo-accent); color: var(--algo-accent-ink); border-color: var(--algo-accent); }
+
+  @media (max-width: 480px) {
+    .algo-weights { grid-template-columns: 1fr; }
+    .algo-item-meta { display: none; }
+  }
+</style>
+
+<script>
+(function () {
+  var STORAGE_KEY = "algoSectionItems_v1";
+
+  var seedItems = [
+    { id: "1", title: "How we cut page load time by 40%", url: "#", views: 8200, likes: 410, date: "2026-09-10", pinned: false },
+    { id: "2", title: "A field guide to CSS container queries", url: "#", views: 5400, likes: 380, date: "2026-09-15", pinned: false },
+    { id: "3", title: "Why we moved off our old build system", url: "#", views: 12000, likes: 260, date: "2026-08-20", pinned: false },
+    { id: "4", title: "Designing empty states people actually like", url: "#", views: 3100, likes: 290, date: "2026-09-18", pinned: false },
+    { id: "5", title: "Our on-call rotation, one year in", url: "#", views: 2600, likes: 150, date: "2026-09-01", pinned: false }
+  ];
+
+  function loadItems() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return seedItems.slice();
+  }
+
+  function saveItems(items) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); } catch (e) {}
+  }
+
+  var root = document.getElementById("algoSection");
+  var listEl = document.getElementById("algoList");
+  var hintEl = document.getElementById("algoHint");
+  var modeBtns = root.querySelectorAll(".algo-mode-btn");
+  var wViews = document.getElementById("wViews");
+  var wLikes = document.getElementById("wLikes");
+  var wRecency = document.getElementById("wRecency");
+
+  var state = {
+    items: loadItems(),
+    mode: "auto",
+    weights: { views: 4, likes: 6, recency: 5 },
+    editingId: null
+  };
+
+  function daysAgo(dateStr) {
+    var d = new Date(dateStr);
+    var now = new Date();
+    return Math.max(0, (now - d) / 86400000);
+  }
+
+  function score(item) {
+    var recencyScore = Math.max(0, 30 - daysAgo(item.date)) / 30 * 100;
+    return (
+      item.views * (state.weights.views / 10) * 0.02 +
+      item.likes * (state.weights.likes / 10) * 0.5 +
+      recencyScore * (state.weights.recency / 10)
+    );
+  }
+
+  function getOrdered() {
+    var items = state.items.slice();
+    if (state.mode === "auto") {
+      items.sort(function (a, b) {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return score(b) - score(a);
+      });
+    } else {
+      items.sort(function (a, b) {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return (a.order || 0) - (b.order || 0);
+      });
+    }
+    return items;
+  }
+
+  function render() {
+    root.className = state.mode === "manual" ? "algo-section mode-manual" : "algo-section";
+    hintEl.style.display = state.mode === "manual" ? "block" : "none";
+    modeBtns.forEach(function (b) {
+      var active = b.dataset.mode === state.mode;
+      b.classList.toggle("is-active", active);
+      b.setAttribute("aria-selected", active ? "true" : "false");
+    });
+
+    var ordered = getOrdered();
+    listEl.innerHTML = "";
+
+    ordered.forEach(function (item, idx) {
+      var li = document.createElement("li");
+      li.className = "algo-item";
+      li.draggable = state.mode === "manual";
+      li.dataset.id = item.id;
+
+      var s = score(item).toFixed(0);
+
+      li.innerHTML =
+        '<span class="algo-rank">' + (idx + 1) + '</span>' +
+        '<span class="algo-handle">\u2261</span>' +
+        '<div class="algo-item-body">' +
+          '<a class="algo-item-title" href="' + item.url + '">' + escapeHtml(item.title) + '</a>' +
+          '<div class="algo-item-meta">' + item.views.toLocaleString() + ' views · ' + item.likes.toLocaleString() + ' likes · ' + item.date + '</div>' +
+        '</div>' +
+        (state.mode === "auto" ? '<span class="algo-item-score">' + s + 'pt</span>' : '') +
+        '<div class="algo-item-actions">' +
+          '<button class="algo-icon-btn algo-pin-btn' + (item.pinned ? ' is-pinned' : '') + '" title="Pin to top">\u2605</button>' +
+          '<button class="algo-icon-btn algo-edit-btn" title="Edit">\u270E</button>' +
+          '<button class="algo-icon-btn algo-del-btn" title="Delete">\u2715</button>' +
+        '</div>';
+
+      listEl.appendChild(li);
+    });
+  }
+
+  function escapeHtml(s) {
+    var div = document.createElement("div");
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  // Mode toggle
+  modeBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      state.mode = btn.dataset.mode;
+      if (state.mode === "manual") {
+        state.items.forEach(function (it, i) { it.order = i; });
+      }
+      render();
+    });
+  });
+
+  // Weight sliders
+  [["wViews", wViews, "views"], ["wLikes", wLikes, "likes"], ["wRecency", wRecency, "recency"]].forEach(function (t) {
+    var span = document.querySelector('.algo-weight-val[data-for="' + t[0] + '"]');
+    t[1].addEventListener("input", function () {
+      state.weights[t[2]] = Number(t[1].value);
+      span.textContent = t[1].value;
+      render();
+    });
+  });
+
+  // Item actions (pin / edit / delete) via delegation
+  listEl.addEventListener("click", function (e) {
+    var li = e.target.closest(".algo-item");
+    if (!li) return;
+    var id = li.dataset.id;
+    var item = state.items.find(function (i) { return i.id === id; });
+    if (!item) return;
+
+    if (e.target.closest(".algo-pin-btn")) {
+      item.pinned = !item.pinned;
+      saveItems(state.items);
+      render();
+    } else if (e.target.closest(".algo-del-btn")) {
+      state.items = state.items.filter(function (i) { return i.id !== id; });
+      saveItems(state.items);
+      render();
+    } else if (e.target.closest(".algo-edit-btn")) {
+      openModal(item);
+    }
+  });
+
+  // Drag & drop reorder (manual mode)
+  var dragId = null;
+
+  listEl.addEventListener("dragstart", function (e) {
+    var li = e.target.closest(".algo-item");
+    if (!li) return;
+    dragId = li.dataset.id;
+    li.classList.add("is-dragging");
+  });
+
+  listEl.addEventListener("dragend", function (e) {
+    var li = e.target.closest(".algo-item");
+    if (li) li.classList.remove("is-dragging");
+    listEl.querySelectorAll(".algo-item").forEach(function (el) { el.classList.remove("is-over"); });
+  });
+
+  listEl.addEventListener("dragover", function (e) {
+    if (state.mode !== "manual") return;
+    e.preventDefault();
+    var li = e.target.closest(".algo-item");
+    if (!li || li.dataset.id === dragId) return;
+    listEl.querySelectorAll(".algo-item").forEach(function (el) { el.classList.remove("is-over"); });
+    li.classList.add("is-over");
+  });
+
+  listEl.addEventListener("drop", function (e) {
+    if (state.mode !== "manual") return;
+    e.preventDefault();
+    var li = e.target.closest(".algo-item");
+    if (!li || !dragId || li.dataset.id === dragId) return;
+
+    var ordered = getOrdered();
+    var fromIdx = ordered.findIndex(function (i) { return i.id === dragId; });
+    var toIdx = ordered.findIndex(function (i) { return i.id === li.dataset.id; });
+    var moved = ordered.splice(fromIdx, 1)[0];
+    ordered.splice(toIdx, 0, moved);
+    ordered.forEach(function (it, i) { it.order = i; });
+
+    state.items = ordered;
+    saveItems(state.items);
+    dragId = null;
+    render();
+  });
+
+  // Add / edit modal
+  var backdrop = document.getElementById("algoModalBackdrop");
+  var fTitle = document.getElementById("fTitle");
+  var fUrl = document.getElementById("fUrl");
+  var fViews = document.getElementById("fViews");
+  var fLikes = document.getElementById("fLikes");
+  var fDate = document.getElementById("fDate");
+
+  function openModal(item) {
+    state.editingId = item ? item.id : null;
+    fTitle.value = item ? item.title : "";
+    fUrl.value = item ? item.url : "";
+    fViews.value = item ? item.views : 0;
+    fLikes.value = item ? item.likes : 0;
+    fDate.value = item ? item.date : new Date().toISOString().slice(0, 10);
+    document.getElementById("algoModalTitle").textContent = item ? "Edit item" : "Add item";
+    backdrop.classList.add("is-open");
+  }
+
+  function closeModal() { backdrop.classList.remove("is-open"); }
+
+  document.getElementById("algoAddBtn").addEventListener("click", function () { openModal(null); });
+  document.getElementById("algoCancelBtn").addEventListener("click", closeModal);
+  backdrop.addEventListener("click", function (e) { if (e.target === backdrop) closeModal(); });
+
+  document.getElementById("algoSaveBtn").addEventListener("click", function () {
+    if (!fTitle.value.trim()) { fTitle.focus(); return; }
+
+    if (state.editingId) {
+      var item = state.items.find(function (i) { return i.id === state.editingId; });
+      item.title = fTitle.value.trim();
+      item.url = fUrl.value.trim() || "#";
+      item.views = Number(fViews.value) || 0;
+      item.likes = Number(fLikes.value) || 0;
+      item.date = fDate.value;
+    } else {
+      state.items.push({
+        id: String(Date.now()),
+        title: fTitle.value.trim(),
+        url: fUrl.value.trim() || "#",
+        views: Number(fViews.value) || 0,
+        likes: Number(fLikes.value) || 0,
+        date: fDate.value,
+        pinned: false,
+        order: state.items.length
+      });
+    }
+    saveItems(state.items);
+    closeModal();
+    render();
+  });
+
+  render();
+})();
+</script>
