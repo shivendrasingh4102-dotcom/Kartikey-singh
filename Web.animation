@@ -1,0 +1,247 @@
+<!--
+  RESPONSIVE HERO — video on desktop, static image on mobile
+  =============================================================
+  Same hero as before, but mobile devices get a lightweight static
+  image instead of downloading/playing the video — saves mobile
+  data and battery, and avoids autoplay issues on cellular connections.
+
+  HOW IT WORKS
+  - Two elements sit in the same spot: a <video> and an <img>.
+  - CSS media query (max-width: 767px) hides the video and shows
+    the image below that breakpoint. Above it, the reverse.
+  - The <video> only starts downloading on desktop-sized screens
+    because of `preload="none"` + a small JS check — mobile browsers
+    never fetch the video file at all, so no wasted bandwidth even
+    if someone resizes a desktop browser down.
+
+  WHAT TO REPLACE
+  - VIDEO_URL.mp4 / VIDEO_URL.webm -> your hosted video files
+  - MOBILE_IMAGE.jpg              -> a compressed, similar-looking still
+    frame from your video (or any representative photo), ideally under 150KB
+  - POSTER_URL.jpg                -> shown on desktop while the video loads
+-->
+
+<section class="anim-hero">
+  <!-- Desktop: background video (only loads on screens wider than 767px) -->
+  <video
+    class="anim-hero-video anim-hero-video-desktop"
+    id="heroVideo"
+    muted
+    loop
+    playsinline
+    preload="none"
+    poster="POSTER_URL.jpg"
+  >
+    <source src="VIDEO_URL.mp4" type="video/mp4" />
+    <source src="VIDEO_URL.webm" type="video/webm" />
+  </video>
+
+  <!-- Mobile: static image, no video ever downloaded -->
+  <img
+    class="anim-hero-video anim-hero-image-mobile"
+    src="MOBILE_IMAGE.jpg"
+    alt=""
+    loading="eager"
+  />
+
+  <div class="anim-hero-overlay"></div>
+
+  <div class="anim-hero-content">
+    <p class="anim-hero-kicker" data-animate="fade-up" data-delay="0">Welcome</p>
+    <h1 data-animate="fade-up" data-delay="120">Your site, in motion.</h1>
+    <p class="anim-hero-sub" data-animate="fade-up" data-delay="240">
+      Replace this with your own headline and supporting line.
+    </p>
+    <a href="#" class="anim-hero-btn" data-animate="fade-up" data-delay="360">Get started</a>
+  </div>
+
+  <div class="anim-hero-scroll" data-animate="fade-in" data-delay="600">
+    <span></span>
+  </div>
+</section>
+
+<style>
+  .anim-hero {
+    position: relative;
+    height: 92vh;
+    min-height: 480px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #0e0f13;
+  }
+
+  .anim-hero-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+  }
+
+  /* Default (desktop-first): show video, hide mobile image */
+  .anim-hero-video-desktop { display: block; }
+  .anim-hero-image-mobile { display: none; }
+
+  /* Mobile: hide video element, show static image instead */
+  @media (max-width: 767px) {
+    .anim-hero-video-desktop { display: none; }
+    .anim-hero-image-mobile { display: block; }
+  }
+
+  .anim-hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(10,10,12,0.55) 0%, rgba(10,10,12,0.75) 100%);
+    z-index: 1;
+  }
+
+  .anim-hero-content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    color: #f5f4ef;
+    max-width: 640px;
+    padding: 0 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  }
+
+  .anim-hero-kicker {
+    font-size: 14px;
+    color: #e2a93a;
+    margin: 0 0 14px;
+    font-weight: 600;
+  }
+
+  .anim-hero-content h1 {
+    font-size: clamp(32px, 6vw, 58px);
+    line-height: 1.1;
+    margin: 0 0 16px;
+    font-weight: 700;
+  }
+
+  .anim-hero-sub {
+    font-size: 17px;
+    line-height: 1.6;
+    color: #d6d5cf;
+    margin: 0 0 28px;
+  }
+
+  .anim-hero-btn {
+    display: inline-block;
+    background: #e2a93a;
+    color: #16171c;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 15px;
+    padding: 13px 28px;
+    border-radius: 8px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .anim-hero-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(226, 169, 58, 0.25);
+  }
+
+  .anim-hero-scroll {
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    width: 22px;
+    height: 36px;
+    border: 2px solid rgba(255,255,255,0.5);
+    border-radius: 12px;
+  }
+
+  .anim-hero-scroll span {
+    display: block;
+    width: 4px;
+    height: 8px;
+    background: #fff;
+    border-radius: 2px;
+    margin: 6px auto 0;
+    animation: anim-scroll-dot 1.6s ease-in-out infinite;
+  }
+
+  @keyframes anim-scroll-dot {
+    0% { transform: translateY(0); opacity: 1; }
+    70% { transform: translateY(12px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 0; }
+  }
+
+  [data-animate] {
+    opacity: 0;
+    will-change: transform, opacity;
+    transition-property: opacity, transform;
+    transition-duration: 0.7s;
+    transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  [data-animate="fade-up"] { transform: translateY(28px); }
+  [data-animate="fade-in"] { transform: none; }
+
+  [data-animate].is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-animate] { transition: none !important; opacity: 1 !important; transform: none !important; }
+    .anim-hero-scroll span { animation: none; }
+  }
+</style>
+
+<script>
+(function () {
+  // Only load and play the video if we're actually on a desktop-sized
+  // viewport. preload="none" already stops the browser fetching it by
+  // default; this explicitly sets the source and plays once confirmed.
+  var video = document.getElementById("heroVideo");
+  var isDesktop = window.matchMedia("(min-width: 768px)").matches;
+
+  if (video && isDesktop) {
+    video.load();
+    video.play().catch(function () {
+      // Autoplay can be blocked by the browser (e.g. low power mode) — fine,
+      // the poster image still shows, so this fails silently.
+    });
+  }
+
+  // If someone resizes from mobile to desktop width without a reload
+  // (rare, but possible on foldables/tablets), start the video then too.
+  var hasStarted = isDesktop;
+  window.addEventListener("resize", function () {
+    var nowDesktop = window.matchMedia("(min-width: 768px)").matches;
+    if (nowDesktop && !hasStarted && video) {
+      hasStarted = true;
+      video.load();
+      video.play().catch(function () {});
+    }
+  });
+
+  // Scroll-reveal (same system as before)
+  var els = document.querySelectorAll("[data-animate]");
+  if (!("IntersectionObserver" in window)) {
+    els.forEach(function (el) { el.classList.add("is-visible"); });
+    return;
+  }
+  var observer = new IntersectionObserver(
+    function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        var el = entry.target;
+        var delay = Number(el.getAttribute("data-delay")) || 0;
+        setTimeout(function () { el.classList.add("is-visible"); }, delay);
+        observer.unobserve(el);
+      });
+    },
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
+  );
+  els.forEach(function (el) { observer.observe(el); });
+})();
+</script>
