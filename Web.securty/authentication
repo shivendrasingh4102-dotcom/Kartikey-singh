@@ -1,0 +1,141 @@
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const helmet = require("helmet");
+const cors = require("cors");
+const crypto = require("crypto");
+
+const app = express();
+const PORT = process.env.PORT || 4000;
+const JWT_SECRET = process.env.JWT_SECRET || "change-this-in-production";
+
+app.use(helmet());
+app.use(cors({
+  origin: "http://localhost:3000",
+  credentials: true
+}));
+app.use(express.json());
+
+const users = []; // Replace with a real database in production
+
+function sanitizeUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role
+  };
+}
+
+function createToken(user) {
+  return jwt.sign(
+    { sub: user.id, role: user.role, email: user.email },
+    JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+}
+
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : null;
+
+  if (!token) {
+    return res.status(401).json({ message: "Missing token" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+}
+
+function requireRole(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user || !allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    next();
+  };
+}
+
+// Register
+app.post("/api/register", async (req, res) => {
+  const { email, password, role = "user" } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password are required" });
+  }
+
+  if (users.some(user => user.email.toLowerCase() === email.toLowerCase())) {
+    return res.status(409).json({ message: "User already exists" });
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+
+  const newUser = {
+    id: crypto.randomUUID(),
+    email: email.toLowerCase(),
+    passwordHash: hashedPassword,
+    role
+  };
+
+  users.push(newUser);
+
+  return res.status(201).json({
+    message: "User created",
+    user: sanitizeUser(newUser)
+  });
+});
+
+// Login
+app.post("/api/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password are required" });
+  }
+
+  const user = users.find(
+    u => u.email.toLowerCase() === email.toLowerCase()
+  );
+
+  if (!user) {
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
+
+  const passwordMatches = await bcrypt.compare(password, user.passwordHash);
+
+  if (!passwordMatches) {
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
+
+  const token = createToken(user);
+
+  return res.json({
+    token,
+    user: sanitizeUser(user)
+  });
+});
+
+// Protected route
+app.get("/api/profile", authMiddleware, (req, res) => {
+  res.json({
+    message: "This is a protected route",
+    user: req.user
+  });
+});
+
+// Admin-only route
+app.get("/api/admin", authMiddleware, requireRole("admin"), (req, res) => {
+  res.json({
+    message: "Admin access granted"
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
